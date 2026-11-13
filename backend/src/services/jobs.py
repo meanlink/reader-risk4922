@@ -3,9 +3,14 @@ from fastapi import HTTPException
 from redis import Redis
 from src.config.settings import REDIS_URL
 from src.models import Dataset, Job
-from src.services.business import metadata
+from src.services.business import metadata, reader_label_conflicts
 def create(db, data, user):
-    if not db.get(Dataset,data.dataset_id): raise HTTPException(404,'数据批次不存在')
+    dataset=db.get(Dataset,data.dataset_id)
+    if not dataset: raise HTTPException(404,'数据批次不存在')
+    try:
+        reader_label_conflicts(dataset.records)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     allowed={p['key']:p for p in metadata().get('parameters',[])}
     if set(data.params)-set(allowed): raise HTTPException(422,'包含未知分析参数')
     params={k:p['default'] for k,p in allowed.items()}
